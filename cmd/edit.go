@@ -2,7 +2,9 @@ package cmd
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -72,9 +74,21 @@ func GetInputInfo(input string, keyChoice vault.Key, envKeyPrefix string) (*Inpu
 
 	switch input {
 	case "", "-":
-		scanner := bufio.NewScanner(os.Stdin)
-		scanner.Scan()
-		inputInfo.content = scanner.Bytes()
+		var lines bytes.Buffer
+
+		reader := bufio.NewReader(os.Stdin)
+		for {
+			line, err := reader.ReadString('\n')
+			if err != nil {
+				if err == io.EOF {
+					lines.WriteString(line)
+				}
+				break
+			}
+			lines.WriteString(line)
+		}
+
+		inputInfo.content = lines.Bytes()
 	default:
 		stat, err := os.Stat(input)
 
@@ -114,7 +128,6 @@ func Edit(cmd *cobra.Command, args []string, openEditor bool) {
 	var editedBytes []byte
 
 	if openEditor {
-
 		editedBytes, err = editor.CaptureInputFromEditor(
 			editor.GetPreferredEditorFromEnvironment,
 			inputInfo.content,
@@ -123,6 +136,8 @@ func Edit(cmd *cobra.Command, args []string, openEditor bool) {
 		if err != nil {
 			panic(err)
 		}
+	} else {
+		editedBytes = inputInfo.content
 	}
 
 	encString, err := vault.Encrypt(string(editedBytes), inputInfo.key)
