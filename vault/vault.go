@@ -38,7 +38,7 @@ var (
 )
 
 // Encrypt encrypts the input string with the vault password
-func Encrypt(input string, password string) (string, error) {
+func Encrypt(input string, password string, pad int) (string, error) {
 	if password == "" {
 		return "", ErrEmptyPassword
 	}
@@ -61,12 +61,12 @@ func Encrypt(input string, password string) (string, error) {
 	hashSum := hash.Sum(nil)
 
 	// Encode the secret payload
-	return encodeSecret(&secret{data: data, salt: salt, hmac: hashSum}, key)
+	return encodeSecret(&secret{data: data, salt: salt, hmac: hashSum}, key, pad)
 }
 
 // EncryptFile encrypts the input string and saves it into the file
 func EncryptFile(path string, input string, password string) error {
-	result, err := Encrypt(input, password)
+	result, err := Encrypt(input, password, 0)
 	if err != nil {
 		return err
 	}

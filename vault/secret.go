@@ -40,12 +40,14 @@ func decodeSecret(input string) (*secret, error) {
 	return &secret{salt, hmac, data}, nil
 }
 
-func encodeSecret(secret *secret, key *key) (string, error) {
+func encodeSecret(secret *secret, key *key, pad int) (string, error) {
 	hmacEncrypt := hmac.New(sha256.New, key.hmacKey)
 	hmacEncrypt.Write(secret.data)
 	hexSalt := hex.EncodeToString(secret.salt)
 	hexHmac := hmacEncrypt.Sum(nil)
 	hexCipher := hex.EncodeToString(secret.data)
+
+	sep := strings.Repeat(" ", pad)
 
 	combined := strings.Join([]string{
 		string(hexSalt),
@@ -55,10 +57,10 @@ func encodeSecret(secret *secret, key *key) (string, error) {
 
 	result := strings.Join([]string{
 		vaultHeader,
-		wrapText(hex.EncodeToString([]byte(combined))),
-	}, "\n")
+		wrapText(hex.EncodeToString([]byte(combined)), sep),
+	}, "\n"+sep)
 
-	return result, nil
+	return sep + result, nil
 }
 
 func checkDigest(secret *secret, key *key) error {
@@ -70,13 +72,15 @@ func checkDigest(secret *secret, key *key) error {
 	return nil
 }
 
-func wrapText(text string) string {
+func wrapText(text string, pad string) string {
 	src := []byte(text)
 	result := []byte{}
 
+	sep := []byte("\n" + pad)
+
 	for i := 0; i < len(src); i++ {
 		if i > 0 && i%80 == 0 {
-			result = append(result, '\n')
+			result = append(result, sep...)
 		}
 		result = append(result, src[i])
 	}

@@ -1,7 +1,6 @@
 package editor
 
 import (
-	"fmt"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -24,7 +23,6 @@ func GetPreferredEditorFromEnvironment() string {
 
 func resolveEditorArguments(executable string, filename string) []string {
 	args := []string{filename}
-	fmt.Println(executable)
 	if strings.Contains(executable, "Visual Studio Code.app") || strings.Contains(executable, "vscode") || strings.Contains(executable, "VS Code") {
 		args = append([]string{"--wait"}, args...)
 		return args

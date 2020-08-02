@@ -8,6 +8,8 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strings"
 
 	"github.com/pleclech/ansible-vault-helper/editor"
 	"github.com/pleclech/ansible-vault-helper/vault"
@@ -15,12 +17,72 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var (
+	reYamlVaultEntry = regexp.MustCompile(`([^\S\r\n]*)(\w+):(\s+)[!]vault(.*)[\||>]`)
+	reSpaces         = regexp.MustCompile(`(\s+)`)
+)
+
 type InputInfo struct {
-	content  []byte
-	isFile   bool
-	fileMode os.FileMode
-	fileExt  string
-	key      string
+	content    []byte
+	isFile     bool
+	fileMode   os.FileMode
+	tmpFileExt string
+	fileExt    string
+	key        string
+}
+
+func (i *InputInfo) decryptYamlEntries() error {
+	content := string(i.content)
+	matches := reYamlVaultEntry.FindAllStringSubmatch(content, -1)
+	for _, match := range matches {
+		lMin := len(match[1])
+		pat := fmt.Sprintf(`%s(((\s{%d,})(.+))+)`, regexp.QuoteMeta(match[0]), lMin+2)
+		reN := regexp.MustCompile(pat)
+		values := reN.FindAllStringSubmatch(content, -1)
+		if len(values) > 0 {
+			value := values[0][1]
+			tmpValue := reSpaces.ReplaceAllString(value, "\n")[1:]
+			if vault.MaybeEncrypted(tmpValue) {
+				ic, err := vault.Decrypt(tmpValue, i.key)
+				if err != nil {
+					return err
+				}
+				content = strings.Replace(content, value, "\n"+ic, -1)
+			}
+		}
+	}
+	i.content = []byte(content)
+	return nil
+}
+
+func (i InputInfo) IsYaml() bool {
+	return i.tmpFileExt == ".yaml" || i.tmpFileExt == ".yml"
+}
+
+func (i *InputInfo) Encrypt() (string, error) {
+	content := string(i.content)
+	if !i.IsYaml() {
+		return vault.Encrypt(content, i.key, 0)
+	}
+	matches := reYamlVaultEntry.FindAllStringSubmatch(content, -1)
+	if len(matches) <= 0 {
+		return vault.Encrypt(content, i.key, 0)
+	}
+	for _, match := range matches {
+		lMin := len(match[1])
+		pat := fmt.Sprintf(`%s(((\s{%d,})(.+))+)`, regexp.QuoteMeta(match[0]), lMin+2)
+		reN := regexp.MustCompile(pat)
+		values := reN.FindAllStringSubmatch(content, -1)
+		if len(values) > 0 {
+			value := values[0][1]
+			ic, err := vault.Encrypt(value[1:], i.key, lMin+2)
+			if err != nil {
+				return content, err
+			}
+			content = strings.Replace(content, value, "\n"+ic, -1)
+		}
+	}
+	return content, nil
 }
 
 func (i *InputInfo) Decrypt(doNotAskForKey bool, keyPrompt string) error {
@@ -42,21 +104,27 @@ func (i *InputInfo) Decrypt(doNotAskForKey bool, keyPrompt string) error {
 		}
 		i.content = ([]byte)(ic)
 	} else {
-		if i.isFile && key == "" && !doNotAskForKey {
-			key, err = readPassword("Enter new key", keyPrompt)
-			if err != nil {
-				return err
-			}
+		if i.isFile {
+			if key == "" && !doNotAskForKey {
+				key, err = readPassword("Enter new key", keyPrompt)
+				if err != nil {
+					return err
+				}
 
-			key2, err := readPassword("Confirm new key", keyPrompt)
-			if err != nil {
-				return err
-			}
+				key2, err := readPassword("Confirm new key", keyPrompt)
+				if err != nil {
+					return err
+				}
 
-			if key != key2 {
-				return fmt.Errorf("error password differs")
+				if key != key2 {
+					return fmt.Errorf("error password differs")
+				}
+				i.key = key
 			}
-			i.key = key
+			switch i.tmpFileExt {
+			case ".yaml", ".yml":
+				return i.decryptYamlEntries()
+			}
 		}
 	}
 	return nil
@@ -105,6 +173,10 @@ func GetInputInfo(input string, keyChoice vault.Key, envKeyPrefix string) (*Inpu
 		}
 
 		inputInfo.fileExt = filepath.Ext(input)
+		inputInfo.tmpFileExt = filepath.Ext(input[0 : len(input)-len(inputInfo.fileExt)])
+		if inputInfo.tmpFileExt == "" {
+			inputInfo.tmpFileExt = inputInfo.fileExt
+		}
 	}
 
 	return inputInfo, nil
@@ -120,6 +192,8 @@ func Edit(cmd *cobra.Command, args []string, openEditor bool) {
 		output = input
 	}
 
+	ext := inputInfo.tmpFileExt
+
 	err = inputInfo.Decrypt(doNotAskForKey, keyPrompt)
 	if err != nil {
 		panic(err)
@@ -131,16 +205,15 @@ func Edit(cmd *cobra.Command, args []string, openEditor bool) {
 		editedBytes, err = editor.CaptureInputFromEditor(
 			editor.GetPreferredEditorFromEnvironment,
 			inputInfo.content,
-			inputInfo.fileExt,
+			ext,
 		)
 		if err != nil {
 			panic(err)
 		}
-	} else {
-		editedBytes = inputInfo.content
+		inputInfo.content = editedBytes
 	}
 
-	encString, err := vault.Encrypt(string(editedBytes), inputInfo.key)
+	encString, err := inputInfo.Encrypt()
 	if err != nil {
 		panic(fmt.Errorf("encrypt : %w", err))
 	}
