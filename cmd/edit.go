@@ -47,7 +47,13 @@ func (i *InputInfo) decryptYamlEntries() error {
 				if err != nil {
 					return err
 				}
-				content = strings.Replace(content, value, "\n"+ic, -1)
+				sep := "\n" + strings.Repeat(" ", lMin+2)
+				var bb bytes.Buffer
+				for _, tmp := range strings.Split(ic, "\n") {
+					bb.WriteString(sep)
+					bb.WriteString(tmp)
+				}
+				content = strings.Replace(content, value, bb.String(), -1)
 			}
 		}
 	}
@@ -75,7 +81,15 @@ func (i *InputInfo) Encrypt() (string, error) {
 		values := reN.FindAllStringSubmatch(content, -1)
 		if len(values) > 0 {
 			value := values[0][1]
-			ic, err := vault.Encrypt(value[1:], i.key, lMin+2)
+			var bb bytes.Buffer
+			sep := ""
+			for _, tmp := range strings.Split(value[1:], "\n") {
+				tmp = strings.TrimSpace(tmp)
+				bb.WriteString(sep)
+				bb.WriteString(tmp)
+				sep = "\n"
+			}
+			ic, err := vault.Encrypt(bb.String(), i.key, lMin+2)
 			if err != nil {
 				return content, err
 			}

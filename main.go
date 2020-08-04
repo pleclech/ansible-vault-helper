@@ -16,7 +16,7 @@ import (
 	"github.com/pleclech/ansible-vault-helper/cmd"
 )
 
-const version = "1.0.2"
+const version = "1.0.3"
 
 func main() {
 	cmd.Execute(version)

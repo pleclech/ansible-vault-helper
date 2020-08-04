@@ -3,6 +3,7 @@ module github.com/pleclech/ansible-vault-helper
 go 1.13
 
 require (
+	github.com/davecgh/go-spew v1.1.1
 	github.com/fsnotify/fsnotify v1.4.9 // indirect
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/mitchellh/mapstructure v1.3.2 // indirect
