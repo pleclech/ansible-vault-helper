@@ -18,7 +18,7 @@ import (
 )
 
 var (
-	reYamlVaultEntry = regexp.MustCompile(`([^\S\r\n]*)(\w+):(\s+)[!]vault(.*)[\||>]`)
+	reYamlVaultEntry = regexp.MustCompile(`([^\S\r\n]*)(\w+):(\s+)[!]vault(.*)[\||>].*`)
 	reSpaces         = regexp.MustCompile(`(\s+)`)
 )
 
