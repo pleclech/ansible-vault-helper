@@ -190,6 +190,11 @@ func GetInputInfo(input string, keyChoice vault.Key, envKeyPrefix string) (*Inpu
 		inputInfo.tmpFileExt = filepath.Ext(input[0 : len(input)-len(inputInfo.fileExt)])
 		if inputInfo.tmpFileExt == "" {
 			inputInfo.tmpFileExt = inputInfo.fileExt
+		} else {
+			switch inputInfo.fileExt {
+			case ".yaml", ".yml":
+				inputInfo.tmpFileExt = inputInfo.fileExt
+			}
 		}
 	}
 
